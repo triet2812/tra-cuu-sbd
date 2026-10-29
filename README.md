@@ -1,103 +1,96 @@
-3. Bấm **Chạy**, không bấm **Gỡ lỗi**. Cấp quyền nếu được yêu cầu.
-4. Mở **Nhật ký thực thi** và tìm dòng `SGUET_SETUP:...`.
+# SGUET · Website tra cứu kết quả vòng đơn
 
-Nếu không thấy hàm, kiểm tra đã chép toàn bộ `Code.gs` mới và lưu. Khung **Trình gỡ lỗi** báo chưa có điểm dừng không phải kết quả kiểm tra cấu hình; đóng khung đó và dùng nút **Chạy**.
+Website Google Apps Script tra cứu bằng **SBD và họ tên**, lấy kết quả trực tiếp từ Google Sheets riêng tư. Người tra cứu không cần đăng nhập Google. Không dùng API key và không tải toàn bộ danh sách ứng viên về trình duyệt.
 
-Hàm chẩn đoán chỉ đọc bảng, kiểm tra tiêu đề và mọi ô D; không sửa dữ liệu, không dùng quota tra cứu công khai và không log thông tin ứng viên. Dấu `_` cuối tên ngăn gọi hàm từ `google.script.run`.
+## Mã nguồn
 
-| Mã sau `SGUET_SETUP:` | Ý nghĩa và cách xử lý |
+| Tệp | Chức năng |
 | --- | --- |
-| OK | Đọc được bảng, đúng cấu trúc A:D và các ô D có tên ban hợp lệ. Tiếp tục kiểm tra Web App. |
-| MISSING_SPREADSHEET_ID | Thêm thuộc tính tập lệnh tên chính xác `SPREADSHEET_ID`. |
-| SHEET_ACCESS_FAILED | Kiểm tra ID và quyền đọc của tài khoản chạy. Mã này không xác định riêng lỗi quyền hay lỗi ID/dịch vụ. |
-| SHEET_NOT_FOUND | Sửa `CONFIG.sheetName` thành tên tab ở cuối Sheets. Tên tài liệu không thay thế tên tab. |
-| INVALID_HEADERS | Kiểm tra hàng 1 theo thứ tự SBD, Họ và tên, Điền đơn, Đậu; không gộp ô. |
-| INVALID_ROW_COUNT | Thiếu hàng tiêu đề hoặc vượt 50.000 dòng dữ liệu. |
-| SHEET_READ_FAILED | Không đọc được A:D; kiểm tra cấu trúc bảng, dịch vụ Sheets và hạn mức tài khoản. |
-| INVALID_DEPARTMENT | Một ô D chứa mục ngoài ba tên ban cho phép. Kiểm tra dropdown, không dùng chữ “Không” thay ô trống. |
-| UNEXPECTED_ERROR | Kiểm tra trạng thái thực thi và hạn mức Apps Script. Không cần gửi lỗi thô chứa thông tin riêng tư. |
+| [Code.gs](Code.gs) | Đọc Sheets, đối chiếu thông tin, tách các ban đậu, giới hạn tần suất và chẩn đoán cấu hình. |
+| [Index.html](Index.html) | Giao diện HTML/CSS/JavaScript và lời gọi server bằng `google.script.run`. |
+| [tests/server.test.cjs](tests/server.test.cjs) | Kiểm thử logic server bằng mock dịch vụ Google. |
+| [tests/frontend.test.cjs](tests/frontend.test.cjs) | Kiểm thử trạng thái giao diện bằng mock DOM và RPC. |
 
-Nếu đang dùng hàm kiểm tra cũ và thấy **`SAI_TEN_TAB`**, lỗi tương ứng với **`SHEET_NOT_FOUND`**: đổi `CONFIG.sheetName` hoặc đổi tên tab để chúng khớp nhau.
+Chỉ chép `Code.gs` và `Index.html` lên Apps Script. Dữ liệu giả trong bộ kiểm thử không được dùng trong bản triển khai.
 
-Nếu website báo **“Chưa thể tra cứu lúc này…”**, yêu cầu đã gặp lỗi server, khác với không tìm thấy thông tin. Log của lần gọi `lookup` có tiền tố `SGUET_LOOKUP:`. Mã `DUPLICATE_IDENTITY` nghĩa là nhiều dòng trùng cả SBD và họ tên. Chẩn đoán toàn bảng có thể phát hiện ô D lỗi ở dòng khác, trong khi tra cứu chỉ kiểm tra D của người khớp. Khi cần hỗ trợ, chỉ gửi mã lỗi; không gửi danh sách ứng viên.
+## Giao diện hiện tại
 
-## 4. Triển khai và cập nhật Web App
+- Font **Nunito**, nền trắng, màu đen và xanh dương nhạt.
+- Hai ô SBD và Họ và tên có viền đen bo tròn; nút tìm kiếm tròn màu đen với kính lúp trắng.
+- Màn hình máy tính đặt các ô trên một hàng; điện thoại xếp dọc và giữ nút tìm kiếm tròn.
+- Ban đầu hiển thị **SGUET TRA CỨU KẾT QUẢ VÒNG ĐƠN**, chưa có lời chúc mừng.
+- Khi có ban đậu, tiêu đề chuyển thành **SGUET CHÚC MỪNG BẠN ĐÃ ĐỖ VÒNG ĐƠN!**.
+- Phần kết quả căn giữa, chữ xanh nhạt đậm nghiêng, không có nền hoặc viền khung ngoài. Danh sách đầy đủ các ban xuống dòng riêng:
 
-### Triển khai lần đầu
+  > Bạn đã đậu kết quả vòng đơn của
+  >
+  > Ban Truyền thông, Ban Tổ chức sự kiện.
 
-1. Chọn **Triển khai → Triển khai mới → Ứng dụng web**.
-2. Chọn **Thực thi dưới danh nghĩa: Tôi**, bằng tài khoản có quyền đọc bảng tính.
-3. Chọn **Ai có quyền truy cập: Bất kỳ ai / Anyone** để tra cứu không cần đăng nhập Google.
-4. Triển khai, cấp quyền bằng tài khoản quản lý sau khi kiểm tra mã.
-5. Mở URL kết thúc bằng **`/exec`** trong cửa sổ ẩn danh chưa đăng nhập để kiểm tra.
+- Bên dưới là lời nhắc chữ đỏ nghiêng trong khung đỏ bo tròn:
 
-Nếu Workspace không cung cấp tùy chọn “Bất kỳ ai”, cần quản trị viên cho phép hoặc dùng tài khoản được tổ chức chấp thuận. Không công khai Sheets để khắc phục. URL `/dev` dành cho người có quyền chỉnh sửa, không dùng thay URL công khai.
+  > Bạn hãy xác nhận và hãy nhớ **BẠN CHỈ ĐƯỢC PHÉP** tham gia phỏng vấn Ban mà bạn đã đậu vòng đơn.
 
-### Cập nhật website đã có
+Khung này chỉ là lời nhắc, không phải nút xác nhận và không ghi nhận tham gia phỏng vấn vào Sheets. Nếu cột Đậu trống, website thông báo chưa vượt qua vòng đơn, không chúc mừng và không hiển thị khung nhắc.
 
-Sau khi sửa `Code.gs` hoặc `Index.html`:
+## 1. Chuẩn bị Google Sheets
 
-1. Lưu mã trong Apps Script.
-2. Chọn **Triển khai → Quản lý các bản triển khai**.
-3. Chọn bản triển khai hiện tại → **Chỉnh sửa**.
-4. Chọn **Phiên bản mới → Triển khai**.
-5. Tải lại URL `/exec` và kiểm tra.
+### Bảng dữ liệu
 
-Chỉ bấm Lưu trong trình soạn thảo không cập nhật mã của bản `/exec` đang triển khai. Cập nhật bản triển khai hiện tại giữ nguyên URL.
+Hàng 1 có bốn tiêu đề theo đúng thứ tự; dữ liệu bắt đầu từ hàng 2:
 
-Khi chỉ thay đổi dữ liệu Sheets, **không cần triển khai lại**: server dùng `SpreadsheetApp.openById()` đọc mới vùng A:D mỗi yêu cầu, không cache danh sách hay kết quả. HTML phải chạy qua Apps Script để sử dụng `google.script.run`, không chạy như trang tĩnh độc lập.
+| Cột | Tiêu đề | Nội dung |
+| --- | --- | --- |
+| A | SBD | Mã ứng viên, lưu dưới dạng văn bản. |
+| B | Họ và tên | Họ tên đầy đủ, có dấu. |
+| C | Điền đơn | Các ban ứng viên đăng ký; không dùng để xác định kết quả. |
+| D | Đậu | Các ban ứng viên vượt qua vòng đơn. |
 
-## 5. Quy tắc tra cứu và trạng thái hiển thị
+Không gộp ô tiêu đề. Mã chấp nhận khác biệt hoa/thường, Unicode và khoảng trắng thừa trong tiêu đề, nhưng không tự hoán đổi thứ tự cột.
 
-- Bắt buộc có cả SBD và họ tên; server kiểm tra lại dữ liệu gửi lên.
-- SBD được bỏ khoảng trắng đầu/cuối và so khớp không phân biệt hoa/thường; giữ nguyên số 0 đầu. Khoảng trắng giữa mã không hợp lệ.
-- Họ tên được chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và gộp khoảng trắng thừa; không phân biệt hoa/thường. Vẫn phân biệt dấu tiếng Việt, không tìm kiếm một phần hoặc sửa chính tả.
-- SBD và họ tên phải khớp cùng một dòng. Server chỉ trả trạng thái và danh sách ban đậu của dòng đó; không trả SBD, họ tên, cột C hoặc các ứng viên khác.
+Trước khi nhập/import SBD, chọn cột A → **Định dạng → Số → Văn bản thuần túy**. Hỗ trợ mã như `X04`, `00123`; SBD có 1–30 chữ cái ASCII hoặc chữ số. Nếu Sheets đã xóa số 0 đầu, định dạng lại không khôi phục được: cần sửa từ dữ liệu nguồn.
 
-| Trường hợp | Hiển thị |
-| --- | --- |
-| Đang gửi yêu cầu | Thông báo đang tra cứu, tạm vô hiệu hóa nút gửi. |
-| Không khớp | “Không tìm thấy kết quả phù hợp. Vui lòng kiểm tra lại SBD và họ tên.” |
-| Khớp, D có một/nhiều ban | Lời chúc mừng, đầy đủ các ban đậu và khung nhắc phỏng vấn. |
-| Khớp, D trống | “Bạn chưa vượt qua vòng đơn. Cảm ơn bạn đã quan tâm và tham gia cùng SGUET.” |
-| Lỗi server | Thông báo chưa thể tra cứu; xem mã an toàn trong log server. |
-| Lỗi kết nối | Thông báo kết nối gặp sự cố và cho phép thử lại. |
-| Hết quota | Thông báo hệ thống đạt giới hạn tra cứu. |
+Cột C và D dùng dropdown nhiều lựa chọn, kiểu chip, với ba mục:
 
-Khi nhập thông tin khác hoặc bắt đầu yêu cầu mới, kết quả cũ bị ẩn. Phản hồi cho dữ liệu đã thay đổi trong lúc chờ bị bỏ qua. Nội dung động được hiển thị bằng `textContent`/text node, không chèn HTML từ ô Sheets.
+- Ban Tư vấn - Hỗ trợ
+- Ban Truyền thông
+- Ban Tổ chức sự kiện
 
-## 6. Kiểm thử
+Server đọc chuỗi hiển thị bằng `getDisplayValues()` và tách đầy đủ các mục phân cách bằng dấu phẩy, chấm phẩy hoặc xuống dòng; loại mục trùng và giữ thứ tự. Hoa/thường, Unicode và khoảng trắng thừa trong tên ban được chuẩn hóa. Tên ban ngoài ba lựa chọn sẽ gây lỗi để tránh trả kết quả thiếu hoặc sai.
 
-Không cần cài dependencies. Từ thư mục repo, dùng Node.js chạy:
+**Chỉ cột D quyết định kết quả.** Để D trống nếu chưa vượt qua vòng đơn; không nhập `Không`, `Chưa đậu` hoặc dấu gạch thay ô trống. Mỗi SBD nên duy nhất; nếu nhiều dòng trùng cả SBD và họ tên sau chuẩn hóa, server từ chối trả kết quả.
 
-```sh
-node tests/server.test.cjs
-node tests/frontend.test.cjs
-```
+### Giữ bảng tính riêng tư
 
-Bộ kiểm thử hiện có **10 ca server và 4 ca frontend**, dùng mock dịch vụ Google/DOM. Chúng kiểm tra đối chiếu cùng dòng, dấu tiếng Việt, số 0 đầu, nhiều ban, D trống, dữ liệu thay đổi, quota, chẩn đoán cấu hình và điều kiện hiển thị chúc mừng. Không thay thế kiểm tra tích hợp bằng Google Sheets thật hoặc đánh giá hiển thị trong trình duyệt.
+Trong **Chia sẻ**, giữ **Quyền truy cập chung → Bị hạn chế**. Không bật **Xuất bản lên web**. Chỉ cấp quyền chỉnh sửa cho người quản lý cần thiết. Tài khoản triển khai Web App phải có quyền đọc bảng tính.
 
-Trước khi sử dụng chính thức, kiểm tra với bảng thử riêng:
+## 2. Cấu hình Apps Script
 
-1. D chọn một ban, rồi hai/ba chip: website hiển thị đầy đủ từng ban, danh sách xuống dòng riêng.
-2. C có nhiều ban nhưng D trống: không chúc mừng, không xuất hiện khung nhắc.
-3. Đúng SBD nhưng sai tên, sai dấu hoặc tên thuộc dòng khác: không tìm thấy.
-4. Thay đổi hoa/thường, khoảng trắng thừa; thử mã chữ/số và số 0 đầu: vẫn đối chiếu đúng quy tắc.
-5. Sửa D, đợi ít nhất 5 giây và tra cứu lại: thấy dữ liệu mới mà không cập nhật bản triển khai.
-6. Thử máy tính, điện thoại, Tab/Enter và cửa sổ ẩn danh; kiểm tra đang tải, không tìm thấy, lỗi kết nối và việc ẩn kết quả cũ.
+1. Từ Sheets, mở **Tiện ích mở rộng → Apps Script**.
+2. Dán toàn bộ nội dung [Code.gs](Code.gs) vào tệp `Code.gs`.
+3. Tạo tệp **HTML** tên **Index** và dán [Index.html](Index.html). Nếu đã có, thay nội dung tệp hiện tại.
+4. Mở **Cài đặt dự án → Thuộc tính tập lệnh → Thêm thuộc tính tập lệnh**:
 
-Không kiểm thử tải lớn trên dữ liệu ứng viên thật.
+   | Tên thuộc tính | Giá trị |
+   | --- | --- |
+   | SPREADSHEET_ID | ID bảng tính, là đoạn giữa `/d/` và `/edit` trong URL Sheets. Không nhập toàn bộ URL. |
 
-## 7. Bảo vệ dữ liệu và giới hạn chống tra cứu hàng loạt
+5. Kiểm tra `CONFIG.sheetName` trong `Code.gs`:
 
-- Server giới hạn **chung toàn ứng dụng** ở 60 yêu cầu/phút và 1.000/ngày UTC, cấu hình trong `CONFIG`. Tính cả yêu cầu sai. Bộ đếm `LOOKUP_QUOTA` lưu trong Script Properties và cập nhật dưới `ScriptLock`, không chứa SBD/họ tên.
-- Hết quota hoặc không lấy được khóa thì từ chối trước khi đọc danh sách ứng viên. Apps Script còn có hạn mức nền tảng riêng.
-- Frontend chờ 5 giây giữa các lần gửi, chặn gửi đồng thời và có honeypot. Các lớp frontend có thể bị bỏ qua; server vẫn kiểm tra dữ liệu và quota.
-- Apps Script RPC công khai không có IP khách đáng tin cậy. Giới hạn chung không phải giới hạn từng người và không bảo đảm ngăn bot. Người xấu có thể dùng hết quota, khiến người khác bị từ chối; quota không ngăn hoàn toàn việc cạn tài nguyên nền tảng.
-- SBD và họ tên có thể được biết hoặc đoán: đối chiếu hai trường **không xác thực chủ dữ liệu**. Nếu cần bảo mật mạnh hơn, phải thiết kế mã tra cứu ngẫu nhiên phát riêng, OTP, đăng nhập hoặc hạ tầng chống bot phù hợp. Các cơ chế đó chưa tích hợp trong bản hiện tại.
-- Giữ Sheets riêng tư, tối thiểu hóa người có quyền chỉnh sửa và thông báo rõ mục đích, thời hạn lưu, kênh sửa/xóa dữ liệu. Thông tin Web App trả về vẫn được tiết lộ dù bảng gốc riêng tư.
-- Không ghi SBD, họ tên hoặc nội dung bảng vào log, URL, analytics hay localStorage. Log chẩn đoán chỉ chứa các mã kiểm soát sẵn. Không có chức năng liệt kê/xuất toàn bộ danh sách.
-- Giới hạn hiện tại là 50.000 dòng dữ liệu, đọc A:D mỗi yêu cầu; phù hợp bảng nhỏ/vừa.
-- Nunito tải từ `fonts.googleapis.com` và `fonts.gstatic.com`. Nếu bị chặn, trình duyệt dùng font dự phòng. Mã không gửi SBD/họ tên đến Google Fonts.
+   ```javascript
+   sheetName: 'Danh sách Đậu Vòng đơn',
+   ```
 
-Việc sửa mã hoặc chạy kiểm thử cục bộ không tự triển khai Web App, tạo bản phát hành hay cập nhật GitHub.
+   **Đây phải là tên tab chứa dữ liệu ở thanh dưới cùng Google Sheets, không phải tên tài liệu ở góc trên trái.** Giá trị trong repo chỉ là cấu hình mặc định; thay bằng tên tab thực tế, đúng dấu, chữ hoa/thường và khoảng trắng. Ví dụ, nếu tab là `Trang tính1`:
+
+   ```javascript
+   sheetName: 'Trang tính1',
+   ```
+
+6. Nhấn **Ctrl + S** để lưu. Không đưa ID hoặc thông tin xác thực vào HTML.
+
+## 3. Kiểm tra cấu hình trước khi triển khai
+
+Bản `Code.gs` trong repo có sẵn hàm **`diagnoseSetup_`**; đây là hàm của dự án, không phải công cụ mặc định của Google.
+
+1. Lưu mã mới trong trình soạn thảo Apps Script.
+2. Trên thanh công cụ, mở danh sách hàm cạnh nút **▶ Chạy** và chọn **`diagnoseSetup_`**.
