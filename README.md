@@ -1,98 +1,103 @@
-# SGUET · Tra cứu kết quả vòng đơn
+3. Bấm **Chạy**, không bấm **Gỡ lỗi**. Cấp quyền nếu được yêu cầu.
+4. Mở **Nhật ký thực thi** và tìm dòng `SGUET_SETUP:...`.
 
-Mã nguồn hoàn chỉnh: [Code.gs](Code.gs) và [Index.html](Index.html). Giao diện Nunito, nền trắng, đen và xanh dương nhạt; hai ô viền đen bo tròn và nút kính lúp tròn. Ban đầu chỉ hiện tiêu đề tra cứu; lời chúc mừng và khung viền đỏ chỉ xuất hiện sau khi server xác nhận có ban đậu.
+Nếu không thấy hàm, kiểm tra đã chép toàn bộ `Code.gs` mới và lưu. Khung **Trình gỡ lỗi** báo chưa có điểm dừng không phải kết quả kiểm tra cấu hình; đóng khung đó và dùng nút **Chạy**.
 
-## 1. Chuẩn bị bảng tính riêng tư
+Hàm chẩn đoán chỉ đọc bảng, kiểm tra tiêu đề và mọi ô D; không sửa dữ liệu, không dùng quota tra cứu công khai và không log thông tin ứng viên. Dấu `_` cuối tên ngăn gọi hàm từ `google.script.run`.
 
-1. Dùng tài khoản ban tổ chức tạo/mở Google Sheets. Giữ **Chia sẻ → Quyền truy cập chung → Bị hạn chế**. Không bật **Xuất bản lên web**. Chỉ cấp quyền chỉnh sửa cho người quản lý cần thiết.
-2. Tab dữ liệu mặc định là **DanhSach**. Nếu tab thực tế có tên khác, sửa `CONFIG.sheetName` trong `Code.gs`.
-3. Hàng 1 phải có đúng bốn tiêu đề theo thứ tự. Dữ liệu bắt đầu từ hàng 2:
+| Mã sau `SGUET_SETUP:` | Ý nghĩa và cách xử lý |
+| --- | --- |
+| OK | Đọc được bảng, đúng cấu trúc A:D và các ô D có tên ban hợp lệ. Tiếp tục kiểm tra Web App. |
+| MISSING_SPREADSHEET_ID | Thêm thuộc tính tập lệnh tên chính xác `SPREADSHEET_ID`. |
+| SHEET_ACCESS_FAILED | Kiểm tra ID và quyền đọc của tài khoản chạy. Mã này không xác định riêng lỗi quyền hay lỗi ID/dịch vụ. |
+| SHEET_NOT_FOUND | Sửa `CONFIG.sheetName` thành tên tab ở cuối Sheets. Tên tài liệu không thay thế tên tab. |
+| INVALID_HEADERS | Kiểm tra hàng 1 theo thứ tự SBD, Họ và tên, Điền đơn, Đậu; không gộp ô. |
+| INVALID_ROW_COUNT | Thiếu hàng tiêu đề hoặc vượt 50.000 dòng dữ liệu. |
+| SHEET_READ_FAILED | Không đọc được A:D; kiểm tra cấu trúc bảng, dịch vụ Sheets và hạn mức tài khoản. |
+| INVALID_DEPARTMENT | Một ô D chứa mục ngoài ba tên ban cho phép. Kiểm tra dropdown, không dùng chữ “Không” thay ô trống. |
+| UNEXPECTED_ERROR | Kiểm tra trạng thái thực thi và hạn mức Apps Script. Không cần gửi lỗi thô chứa thông tin riêng tư. |
 
-   | Cột A | Cột B | Cột C | Cột D |
-   | --- | --- | --- | --- |
-   | SBD | Họ và tên | Điền đơn | Đậu |
+Nếu đang dùng hàm kiểm tra cũ và thấy **`SAI_TEN_TAB`**, lỗi tương ứng với **`SHEET_NOT_FOUND`**: đổi `CONFIG.sheetName` hoặc đổi tên tab để chúng khớp nhau.
 
-4. Định dạng cột A là **Định dạng → Số → Văn bản thuần túy** trước khi nhập/import. Hỗ trợ SBD 1–30 ký tự chữ cái ASCII và chữ số, ví dụ `X04`, `00123`. Không chuyển SBD thành số. Định dạng lại không khôi phục số 0 đã bị Sheets xóa; phải sửa từ nguồn dữ liệu.
-5. Cột C và D: **Dữ liệu → Xác thực dữ liệu → Trình đơn thả xuống**, thêm ba lựa chọn, dùng kiểu chip và bật cho phép chọn nhiều mục:
+Nếu website báo **“Chưa thể tra cứu lúc này…”**, yêu cầu đã gặp lỗi server, khác với không tìm thấy thông tin. Log của lần gọi `lookup` có tiền tố `SGUET_LOOKUP:`. Mã `DUPLICATE_IDENTITY` nghĩa là nhiều dòng trùng cả SBD và họ tên. Chẩn đoán toàn bảng có thể phát hiện ô D lỗi ở dòng khác, trong khi tra cứu chỉ kiểm tra D của người khớp. Khi cần hỗ trợ, chỉ gửi mã lỗi; không gửi danh sách ứng viên.
 
-   - Ban Tư vấn - Hỗ trợ
-   - Ban Truyền thông
-   - Ban Tổ chức sự kiện
+## 4. Triển khai và cập nhật Web App
 
-6. C là các ban điền đơn; **D mới là các ban đậu**. D để trống có nghĩa là chưa vượt qua vòng đơn. Không dùng giá trị `Không`, `Chưa đậu` hay dấu gạch thay cho ô trống.
-7. Mỗi SBD nên là duy nhất. Nếu có nhiều dòng trùng cả SBD lẫn tên sau chuẩn hóa, server trả lỗi thay vì tùy ý chọn một dòng.
-
-Server dùng `SpreadsheetApp.openById()` và `getDisplayValues()` đọc A:D mỗi lần tra cứu. Giá trị chip nhiều lựa chọn được Apps Script đọc thành chuỗi phân cách bằng dấu phẩy; mã tách **tất cả** lựa chọn, loại mục trùng và giữ thứ tự. Hỗ trợ thêm dấu chấm phẩy/xuống dòng cho dữ liệu nhập ngoài. Tên ban không nằm trong ba lựa chọn được phép gây lỗi chung để tránh trả kết quả thiếu/sai. Không tách theo dấu gạch vì tên ban có dấu gạch. Cột C không tham gia kết quả và không gửi xuống trình duyệt.
-
-## 2. Cấu hình Google Apps Script
-
-1. Trong Sheets, chọn **Tiện ích mở rộng → Apps Script**.
-2. Dán toàn bộ [Code.gs](Code.gs) vào tệp `Code.gs`.
-3. Tạo tệp **HTML**, tên **Index**, dán toàn bộ [Index.html](Index.html). Nếu đã có, thay nội dung tệp hiện tại. Không cần thư viện hay API key.
-4. Lấy ID bảng tính từ URL: phần nằm giữa `/d/` và `/edit`.
-5. Vào **Cài đặt dự án → Thuộc tính tập lệnh → Thêm thuộc tính tập lệnh**:
-
-   | Tên | Giá trị |
-   | --- | --- |
-   | SPREADSHEET_ID | ID bảng tính thật của bạn |
-
-6. Lưu. Không đưa ID hay thông tin xác thực vào frontend. Không có dữ liệu ứng viên mẫu cố định trong hai tệp triển khai; fixtures chỉ nằm trong thư mục kiểm thử và không cần tải lên Apps Script.
-
-## 3. Triển khai Web App khi bạn chủ động thực hiện
+### Triển khai lần đầu
 
 1. Chọn **Triển khai → Triển khai mới → Ứng dụng web**.
-2. **Thực thi dưới danh nghĩa: Tôi**, bằng tài khoản có quyền đọc bảng tính.
-3. **Ai có quyền truy cập: Bất kỳ ai / Anyone** để người tra cứu không cần đăng nhập Google. Bảng tính vẫn giữ riêng tư.
-4. Triển khai và cấp quyền bằng tài khoản quản lý sau khi kiểm tra mã.
-5. Dùng URL kết thúc bằng **`/exec`**. Mở cửa sổ ẩn danh chưa đăng nhập Google để xác nhận. `/dev` chỉ dành cho người có quyền chỉnh sửa.
-6. Nếu tổ chức không có lựa chọn **Bất kỳ ai**, cần quản trị viên Workspace cho phép hoặc tài khoản triển khai được tổ chức chấp thuận. Không công khai Sheets để khắc phục.
-7. Với Web App đang tồn tại: sau khi thay hai tệp, chọn **Triển khai → Quản lý các bản triển khai → Chỉnh sửa → Phiên bản mới → Triển khai** để giữ URL hiện tại. Đây là thao tác bạn tự thực hiện khi sẵn sàng.
+2. Chọn **Thực thi dưới danh nghĩa: Tôi**, bằng tài khoản có quyền đọc bảng tính.
+3. Chọn **Ai có quyền truy cập: Bất kỳ ai / Anyone** để tra cứu không cần đăng nhập Google.
+4. Triển khai, cấp quyền bằng tài khoản quản lý sau khi kiểm tra mã.
+5. Mở URL kết thúc bằng **`/exec`** trong cửa sổ ẩn danh chưa đăng nhập để kiểm tra.
 
-Sửa dữ liệu Sheets không cần triển khai lại: lần tra cứu tiếp theo đọc dữ liệu mới, không cache kết quả/danh sách. Chỉ sửa mã mới cần cập nhật phiên bản Web App. HTML phải chạy qua Apps Script vì sử dụng `google.script.run`, không dùng như trang tĩnh độc lập.
+Nếu Workspace không cung cấp tùy chọn “Bất kỳ ai”, cần quản trị viên cho phép hoặc dùng tài khoản được tổ chức chấp thuận. Không công khai Sheets để khắc phục. URL `/dev` dành cho người có quyền chỉnh sửa, không dùng thay URL công khai.
 
-## 4. Quy tắc và nội dung kết quả
+### Cập nhật website đã có
 
-- Bắt buộc nhập cả SBD và họ tên; server kiểm tra lại kể cả khi bỏ qua kiểm tra trình duyệt.
-- SBD được loại khoảng trắng đầu/cuối và so khớp không phân biệt hoa/thường, không xóa số 0 hoặc khoảng trắng giữa mã.
-- Họ tên được chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối, gộp khoảng trắng thừa và so khớp không phân biệt hoa/thường. Vẫn phân biệt dấu tiếng Việt, không khớp một phần, không sửa chính tả.
-- Cả hai phải khớp **cùng một dòng**. Không khớp trả đúng: **“Không tìm thấy kết quả phù hợp. Vui lòng kiểm tra lại SBD và họ tên.”**
-- Khớp và D có ít nhất một ban: tiêu đề **“SGUET CHÚC MỪNG BẠN ĐÃ ĐỖ VÒNG ĐƠN!”** và **“Bạn đã đậu kết quả vòng đơn của [tất cả các ban đậu].”**
-- Bên dưới là khung viền đỏ: **“Bạn hãy xác nhận và hãy nhớ BẠN CHỈ ĐƯỢC PHÉP tham gia phỏng vấn Ban mà bạn đã đậu vòng đơn.”** Đây là lời nhắc, không ghi nhận xác nhận tham gia hay sửa dữ liệu Sheets.
-- Khớp nhưng D trống: thông báo chưa vượt qua vòng đơn; không chúc mừng và không hiện khung nhắc phỏng vấn.
-- Khi thay đổi thông tin nhập hoặc bắt đầu tra cứu khác, kết quả cũ bị ẩn. Phản hồi cho thông tin đã bị sửa trong lúc chờ cũng bị bỏ qua.
-- Mọi dữ liệu động được hiển thị bằng `textContent`/text node; không chèn HTML từ ô Sheets. Server chỉ trả trạng thái và danh sách ban của dòng khớp, không trả toàn bộ danh sách, SBD, họ tên hoặc cột C.
+Sau khi sửa `Code.gs` hoặc `Index.html`:
 
-## 5. Kiểm thử trước khi dùng thật
+1. Lưu mã trong Apps Script.
+2. Chọn **Triển khai → Quản lý các bản triển khai**.
+3. Chọn bản triển khai hiện tại → **Chỉnh sửa**.
+4. Chọn **Phiên bản mới → Triển khai**.
+5. Tải lại URL `/exec` và kiểm tra.
 
-Dùng bảng thử riêng với dữ liệu giả do bạn tạo, không thử tải lớn trên dữ liệu ứng viên thật:
+Chỉ bấm Lưu trong trình soạn thảo không cập nhật mã của bản `/exec` đang triển khai. Cập nhật bản triển khai hiện tại giữ nguyên URL.
 
-1. D chọn một ban, tra cứu đúng cả hai trường → chỉ hiện ban đó.
-2. D chọn hai/ba chip → tất cả ban xuất hiện, không chỉ chip đầu. Thử trực tiếp chip Sheets để xác nhận tích hợp Apps Script.
-3. C có nhiều ban nhưng D trống → thông báo chưa vượt qua, không chúc mừng.
-4. Đúng SBD nhưng tên của dòng khác/sai dấu/tên thiếu → thông báo không tìm thấy. Thử hoa/thường và khoảng trắng thừa → vẫn tìm thấy đúng người.
-5. Kiểm tra `X04` và SBD có số 0 đầu; không khớp SBD rút gọn.
-6. Sửa D trong Sheets và tra cứu lại sau 5 giây → kết quả mới ngay, không triển khai lại.
-7. Thử trên máy tính, điện thoại, bàn phím Tab/Enter, cửa sổ ẩn danh. Kiểm tra đang tải, không tìm thấy, lỗi kết nối và dữ liệu cũ không còn xuất hiện khi nhập thông tin khác.
+Khi chỉ thay đổi dữ liệu Sheets, **không cần triển khai lại**: server dùng `SpreadsheetApp.openById()` đọc mới vùng A:D mỗi yêu cầu, không cache danh sách hay kết quả. HTML phải chạy qua Apps Script để sử dụng `google.script.run`, không chạy như trang tĩnh độc lập.
 
-Kiểm thử tự động cục bộ (Node.js có sẵn, không cần cài dependencies):
+## 5. Quy tắc tra cứu và trạng thái hiển thị
+
+- Bắt buộc có cả SBD và họ tên; server kiểm tra lại dữ liệu gửi lên.
+- SBD được bỏ khoảng trắng đầu/cuối và so khớp không phân biệt hoa/thường; giữ nguyên số 0 đầu. Khoảng trắng giữa mã không hợp lệ.
+- Họ tên được chuẩn hóa Unicode NFC, bỏ khoảng trắng đầu/cuối và gộp khoảng trắng thừa; không phân biệt hoa/thường. Vẫn phân biệt dấu tiếng Việt, không tìm kiếm một phần hoặc sửa chính tả.
+- SBD và họ tên phải khớp cùng một dòng. Server chỉ trả trạng thái và danh sách ban đậu của dòng đó; không trả SBD, họ tên, cột C hoặc các ứng viên khác.
+
+| Trường hợp | Hiển thị |
+| --- | --- |
+| Đang gửi yêu cầu | Thông báo đang tra cứu, tạm vô hiệu hóa nút gửi. |
+| Không khớp | “Không tìm thấy kết quả phù hợp. Vui lòng kiểm tra lại SBD và họ tên.” |
+| Khớp, D có một/nhiều ban | Lời chúc mừng, đầy đủ các ban đậu và khung nhắc phỏng vấn. |
+| Khớp, D trống | “Bạn chưa vượt qua vòng đơn. Cảm ơn bạn đã quan tâm và tham gia cùng SGUET.” |
+| Lỗi server | Thông báo chưa thể tra cứu; xem mã an toàn trong log server. |
+| Lỗi kết nối | Thông báo kết nối gặp sự cố và cho phép thử lại. |
+| Hết quota | Thông báo hệ thống đạt giới hạn tra cứu. |
+
+Khi nhập thông tin khác hoặc bắt đầu yêu cầu mới, kết quả cũ bị ẩn. Phản hồi cho dữ liệu đã thay đổi trong lúc chờ bị bỏ qua. Nội dung động được hiển thị bằng `textContent`/text node, không chèn HTML từ ô Sheets.
+
+## 6. Kiểm thử
+
+Không cần cài dependencies. Từ thư mục repo, dùng Node.js chạy:
 
 ```sh
-cd /workspace/tra-cuu-sbd
 node tests/server.test.cjs
 node tests/frontend.test.cjs
 ```
 
-Bộ kiểm thử dùng mock dịch vụ Google và DOM: kiểm tra logic đối chiếu, nhiều ban, D trống, dữ liệu mới, quota, thông báo và điều kiện chúc mừng. Chưa xác minh tích hợp bằng Sheets thật, quyền tài khoản Google hay hiển thị bằng trình duyệt thật. Chỉ coi việc triển khai hoạt động sau khi hoàn thành kiểm tra `/exec` trên tài khoản của bạn.
+Bộ kiểm thử hiện có **10 ca server và 4 ca frontend**, dùng mock dịch vụ Google/DOM. Chúng kiểm tra đối chiếu cùng dòng, dấu tiếng Việt, số 0 đầu, nhiều ban, D trống, dữ liệu thay đổi, quota, chẩn đoán cấu hình và điều kiện hiển thị chúc mừng. Không thay thế kiểm tra tích hợp bằng Google Sheets thật hoặc đánh giá hiển thị trong trình duyệt.
 
-## 6. Hạn chế tra cứu hàng loạt và bảo vệ dữ liệu
+Trước khi sử dụng chính thức, kiểm tra với bảng thử riêng:
 
-- Giới hạn server **chung toàn ứng dụng**: 60 yêu cầu/phút, 1.000/ngày UTC, cấu hình trong `CONFIG`. Tính cả yêu cầu sai, cập nhật bộ đếm `LOOKUP_QUOTA` trong Script Properties dưới `ScriptLock`. Hết quota hoặc không lấy được khóa thì từ chối, không đọc dữ liệu ứng viên. Bộ đếm không chứa SBD/họ tên. Nền tảng Apps Script còn có hạn mức riêng.
-- Frontend chờ 5 giây giữa các lần gửi, chặn gửi đồng thời và có honeypot. Các lớp frontend có thể bị bỏ qua; server vẫn kiểm tra cả hai trường và quota.
-- Apps Script RPC công khai không có IP khách đáng tin cậy. Đây không phải giới hạn từng cá nhân, không bảo đảm chặn bot: người xấu có thể dùng hết quota chung, khiến người dùng khác bị từ chối. Quota không ngăn hoàn toàn việc làm cạn tài nguyên nền tảng.
-- SBD và họ tên có thể được biết/đoán: đối chiếu hai trường **không xác thực chủ dữ liệu**. Nếu cần bảo mật mạnh hơn, phải thêm mã tra cứu ngẫu nhiên phát riêng/OTP hoặc đăng nhập, hay chuyển sang hạ tầng có chống bot và định danh đáng tin cậy. Các bước này chưa được tích hợp trong phiên bản hiện tại.
-- Không log SBD, họ tên, dữ liệu bảng hay lỗi chi tiết; không đưa vào URL, analytics hoặc localStorage. Không có chức năng liệt kê/xuất dữ liệu. Hàm trợ giúp kết thúc bằng `_` để không thể gọi bằng `google.script.run`.
-- Giữ bảng riêng tư, tối thiểu hóa người được chỉnh sửa, chỉ dùng thông tin theo mục đích đã thông báo và có chính sách sửa/xóa/lưu giữ phù hợp. Dữ liệu mà web app trả về vẫn là thông tin được tiết lộ dù bảng gốc riêng tư.
-- Mỗi yêu cầu đọc tối đa 50.000 dòng dữ liệu A:D; phù hợp bảng nhỏ/vừa. Không thêm hàng/cột thừa hoặc dùng thử tải lớn trên ứng dụng công khai.
-- Font Nunito tải từ Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`); nếu mạng người dùng chặn font thì dùng font dự phòng. Không gửi SBD hay họ tên đến Google Fonts.
+1. D chọn một ban, rồi hai/ba chip: website hiển thị đầy đủ từng ban, danh sách xuống dòng riêng.
+2. C có nhiều ban nhưng D trống: không chúc mừng, không xuất hiện khung nhắc.
+3. Đúng SBD nhưng sai tên, sai dấu hoặc tên thuộc dòng khác: không tìm thấy.
+4. Thay đổi hoa/thường, khoảng trắng thừa; thử mã chữ/số và số 0 đầu: vẫn đối chiếu đúng quy tắc.
+5. Sửa D, đợi ít nhất 5 giây và tra cứu lại: thấy dữ liệu mới mà không cập nhật bản triển khai.
+6. Thử máy tính, điện thoại, Tab/Enter và cửa sổ ẩn danh; kiểm tra đang tải, không tìm thấy, lỗi kết nối và việc ẩn kết quả cũ.
 
-Không có thao tác triển khai, tạo bản phát hành, commit hay push GitHub tự động trong các bước kiểm thử cục bộ.
+Không kiểm thử tải lớn trên dữ liệu ứng viên thật.
+
+## 7. Bảo vệ dữ liệu và giới hạn chống tra cứu hàng loạt
+
+- Server giới hạn **chung toàn ứng dụng** ở 60 yêu cầu/phút và 1.000/ngày UTC, cấu hình trong `CONFIG`. Tính cả yêu cầu sai. Bộ đếm `LOOKUP_QUOTA` lưu trong Script Properties và cập nhật dưới `ScriptLock`, không chứa SBD/họ tên.
+- Hết quota hoặc không lấy được khóa thì từ chối trước khi đọc danh sách ứng viên. Apps Script còn có hạn mức nền tảng riêng.
+- Frontend chờ 5 giây giữa các lần gửi, chặn gửi đồng thời và có honeypot. Các lớp frontend có thể bị bỏ qua; server vẫn kiểm tra dữ liệu và quota.
+- Apps Script RPC công khai không có IP khách đáng tin cậy. Giới hạn chung không phải giới hạn từng người và không bảo đảm ngăn bot. Người xấu có thể dùng hết quota, khiến người khác bị từ chối; quota không ngăn hoàn toàn việc cạn tài nguyên nền tảng.
+- SBD và họ tên có thể được biết hoặc đoán: đối chiếu hai trường **không xác thực chủ dữ liệu**. Nếu cần bảo mật mạnh hơn, phải thiết kế mã tra cứu ngẫu nhiên phát riêng, OTP, đăng nhập hoặc hạ tầng chống bot phù hợp. Các cơ chế đó chưa tích hợp trong bản hiện tại.
+- Giữ Sheets riêng tư, tối thiểu hóa người có quyền chỉnh sửa và thông báo rõ mục đích, thời hạn lưu, kênh sửa/xóa dữ liệu. Thông tin Web App trả về vẫn được tiết lộ dù bảng gốc riêng tư.
+- Không ghi SBD, họ tên hoặc nội dung bảng vào log, URL, analytics hay localStorage. Log chẩn đoán chỉ chứa các mã kiểm soát sẵn. Không có chức năng liệt kê/xuất toàn bộ danh sách.
+- Giới hạn hiện tại là 50.000 dòng dữ liệu, đọc A:D mỗi yêu cầu; phù hợp bảng nhỏ/vừa.
+- Nunito tải từ `fonts.googleapis.com` và `fonts.gstatic.com`. Nếu bị chặn, trình duyệt dùng font dự phòng. Mã không gửi SBD/họ tên đến Google Fonts.
+
+Việc sửa mã hoặc chạy kiểm thử cục bộ không tự triển khai Web App, tạo bản phát hành hay cập nhật GitHub.
