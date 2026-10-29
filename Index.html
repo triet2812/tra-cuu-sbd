@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,600;0,700;0,900;0,1000;1,700&display=swap">
+  <style>
+    :root { color-scheme: light; --blue:#54b2ff; --ink:#000; --muted:#656d76; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#fff; color:var(--ink); font-family:"Nunito", Arial, sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:52px 38px 40px; text-align:center; }
+    .eyebrow { font-size:12px; letter-spacing:.18em; font-weight:700; color:var(--muted); margin:0 0 28px; }
+    h1 { margin:0; font-size:clamp(34px,7.2vw,78px); font-weight:1000; line-height:1.14; letter-spacing:-.025em; }
+    .brand { color:var(--blue); }
+    .intro { margin:40px 0 42px; color:var(--blue); font-weight:700; font-size:clamp(18px,2.8vw,29px); font-style:italic; line-height:1.5; }
+    form { max-width:834px; margin:0 auto; display:grid; grid-template-columns:223px minmax(0, 1fr) 70px; column-gap:21px; align-items:end; text-align:left; }
+    label, .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+    label span { font-weight:400; color:var(--muted); }
+    input { width:100%; height:75px; border:5px solid var(--ink); border-radius:40px; padding:12px 22px; font:inherit; font-size:30px; font-weight:700; background:white; }
+    input::placeholder { color:#999; }
+    input:focus-visible,button:focus-visible { outline:3px solid var(--blue); outline-offset:5px; }
+    button { width:70px; height:70px; margin-bottom:2px; border:0; border-radius:50%; background:var(--ink); color:white; cursor:pointer; display:flex; justify-content:center; align-items:center; }
+    button:hover { background:#287dbb; }
+    button:disabled { opacity:.5; cursor:wait; }
+    button svg { width:39px; height:39px; }
+    .button-text { display:none; }
+    .hint { margin:22px auto; max-width:700px; color:var(--muted); font-size:13px; line-height:1.7; }
+    #message { margin:28px 0 0; line-height:1.6; min-height:26px; }
+    #message[data-kind="error"] { color:#b42318; }
+    .result { text-align:left; max-width:700px; margin:24px auto; padding:28px; border:1px solid #dce6ef; border-radius:24px; background:#f7fbff; }
+    .interview-notice { border:2px solid #d92d20; border-radius:16px; padding:20px; color:#b42318; line-height:1.7; margin:24px 0 0; }
+    #outcome { margin:0; font-size:22px; line-height:1.6; overflow-wrap:anywhere; }
+    .result h2 { font-size:20px; margin:0 0 18px; }
+    dl { margin:0; } .row { display:grid; grid-template-columns:140px 1fr; gap:16px; padding:14px 0; border-top:1px solid #dce6ef; }
+    dt { color:var(--muted); } dd { margin:0; font-weight:600; overflow-wrap:anywhere; white-space:pre-wrap; }
+    footer { margin:64px 0 0; color:var(--muted); font-size:12px; line-height:1.7; }
+    .trap { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+    [hidden] { display:none !important; }
+    @media(max-width:640px) { main { padding:48px 20px 28px; } form { grid-template-columns:1fr; gap:18px; } .intro { margin:26px 0; } button { justify-self:center; } .row { grid-template-columns:1fr; gap:6px; } .result { padding:22px; } footer { margin-top:40px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1 id="headline"><span class="brand">SGUET</span> TRA CỨU KẾT QUẢ<br>VÒNG ĐƠN</h1>
+    <p class="intro">Vui lòng điền thông tin để tra cứu kết quả.</p>
+    <form id="lookup-form">
+      <div><label for="sbd">Số báo danh</label><input id="sbd" name="sbd" type="text" pattern="[A-Za-z0-9\s]{1,60}" maxlength="60" placeholder="SBD" autocomplete="off" spellcheck="false" required aria-describedby="hint"></div>
+      <div><label for="name">Họ và tên</label><input id="name" name="name" type="text" maxlength="150" placeholder="Họ và Tên" autocomplete="off" required></div>
+      <div class="trap" aria-hidden="true"><label for="website">Website</label><input id="website" type="text" tabindex="-1" autocomplete="off"></div>
+      <button id="submit" type="submit" aria-label="Tra cứu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="10" cy="10" r="6.5"></circle><path d="m15 15 6 6"></path></svg><span class="button-text">Tra cứu</span></button>
+    </form>
+    <p class="sr-only" id="hint">Nhập đầy đủ SBD, bao gồm số 0 ở đầu. Chỉ tra cứu thông tin của bạn.<br>Nhập cả SBD và họ tên để tra cứu kết quả vòng đơn.</p>
+    <p id="message" role="status" aria-live="polite" aria-atomic="true"></p>
+    <section id="result" class="result" hidden aria-label="Kết quả tra cứu"><p id="outcome"></p><p id="interview-notice" class="interview-notice" hidden>Bạn hãy xác nhận và hãy nhớ <strong>BẠN CHỈ ĐƯỢC PHÉP</strong> tham gia phỏng vấn Ban mà bạn đã đậu vòng đơn.</p></section>
+  </main>
+  <script>
+    'use strict';
+    const form = document.getElementById('lookup-form');
+    const button = document.getElementById('submit');
+    const message = document.getElementById('message');
+    const result = document.getElementById('result');
+    const headline = document.getElementById('headline');
+    const outcome = document.getElementById('outcome');
+    const notice = document.getElementById('interview-notice');
+    function resetResult() {
+      result.hidden = true;
+      notice.hidden = true;
+      outcome.textContent = '';
+      const brand = document.createElement('span');
+      brand.className = 'brand';
+      brand.textContent = 'SGUET';
+      headline.replaceChildren(brand, document.createTextNode(' TRA CỨU KẾT QUẢ'), document.createElement('br'), document.createTextNode('VÒNG ĐƠN'));
+    }
+    let busy = false;
+    let nextAllowed = 0;
+    function showMessage(text, error = false) {
+      message.textContent = text;
+      message.dataset.kind = error ? 'error' : 'info';
+    }
+    function finish() {
+      busy = false;
+      button.disabled = false;
+      form.setAttribute('aria-busy', 'false');
+    }
+    form.addEventListener('input', () => {
+      resetResult();
+      if (!busy) showMessage('');
+    });
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (busy) return;
+      resetResult();
+      if (Date.now() < nextAllowed) {
+        showMessage('Vui lòng chờ vài giây trước khi tra cứu tiếp.', true);
+        return;
+      }
+      // Keep SBD a string throughout; never parseInt/Number it.
+      const payload = {
+        sbd: document.getElementById('sbd').value.trim(),
+        name: document.getElementById('name').value.trim(),
+        website: document.getElementById('website').value
+      };
+      if (!/^[A-Za-z0-9]{1,30}$/.test(payload.sbd)) {
+        showMessage('Vui lòng nhập SBD gồm 1–30 chữ cái hoặc chữ số.', true);
+        return;
+      }
+      if (!payload.name) {
+        showMessage('Vui lòng nhập họ và tên.', true);
+        document.getElementById('name').focus();
+        return;
+      }
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        showMessage('Hãy mở website bằng đường dẫn triển khai Google Apps Script.', true);
+        return;
+      }
+      busy = true;
+      nextAllowed = Date.now() + 5000;
+      button.disabled = true;
+      form.setAttribute('aria-busy', 'true');
+      showMessage('Đang tra cứu, vui lòng chờ…');
+      google.script.run.withSuccessHandler(response => {
+        finish();
+        if (document.getElementById('sbd').value.trim() !== payload.sbd || document.getElementById('name').value.trim() !== payload.name) {
+          showMessage('Thông tin đã thay đổi. Vui lòng tra cứu lại.');
+          return;
+        }
+        if (!response || !response.ok || !response.found) {
+          showMessage(response && response.message || 'Phản hồi không hợp lệ. Vui lòng thử lại.', !response || !response.ok);
+          return;
+        }
+        if (!Array.isArray(response.departments) ||
+            !response.departments.every(item => typeof item === 'string') ||
+            response.passed !== (response.departments.length > 0)) {
+          showMessage('Phản hồi không hợp lệ. Vui lòng thử lại.', true);
+          return;
+        }
+        if (response.passed) {
+          const brand = document.createElement('span');
+          brand.className = 'brand';
+          brand.textContent = 'SGUET';
+          headline.replaceChildren(brand, document.createTextNode(' CHÚC MỪNG BẠN'), document.createElement('br'), document.createTextNode('ĐÃ ĐỖ VÒNG ĐƠN!'));
+          outcome.textContent = 'Bạn đã đậu kết quả vòng đơn của ' + response.departments.join(', ') + '.';
+          notice.hidden = false;
+        } else {
+          outcome.textContent = 'Bạn chưa vượt qua vòng đơn. Cảm ơn bạn đã quan tâm và tham gia cùng SGUET.';
+        }
+        result.hidden = false;
+        showMessage('Đã tìm thấy kết quả.');
+      }).withFailureHandler(() => {
+        finish();
+        showMessage('Kết nối gặp sự cố. Vui lòng thử lại sau.', true);
+      }).lookup(payload);
+    });
+  </script>
+</body>
+</html>
