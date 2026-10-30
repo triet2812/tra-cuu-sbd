@@ -4,7 +4,7 @@ const CONFIG = Object.freeze({
   departments: [
     'Ban Tư vấn - Hỗ trợ',
     'Ban Truyền thông',
-    'Ban Tổ chức sự kiện'
+    'Ban Tổ chức Sự kiện'
   ],
   requestsPerMinute: 60,
   requestsPerDay: 1000,
